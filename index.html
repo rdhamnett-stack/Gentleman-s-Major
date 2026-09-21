@@ -22,5 +22,29 @@ function setGross(i,day,v){P[i][day===2?'d2':'d3']=+v||0;render()}
 function prevHole(day){let k=day===2?'h2':'h3';state[k]=Math.max(1,state[k]-1);render()};function nextHole(day){let k=day===2?'h2':'h3';state[k]=Math.min(18,state[k]+1);render()}
 function total(p){return p.d2+p.d3}
 function render(){d1r.textContent=state.d1r;d1b.textContent=state.d1b;homeRed.textContent=state.d1r;homeBlue.textContent=state.d1b;status.textContent=state.d1r===state.d1b?'Day 1 is level.':state.d1r>state.d1b?'Pin Seekers lead Day 1.':'Bogeymen lead Day 1.';let a=[...P].sort((x,y)=>total(y)-total(x));leaderboard.innerHTML=a.map((p,i)=>`<div class="row"><div><b>${i+1}. ${p.n}</b><div class="muted">${p.t==='red'?'Pin Seekers':'Bogeymen'} • H/cap ${p.h}</div></div><b>${total(p)}</b></div>`).join('');finalboard.innerHTML=leaderboard.innerHTML;mcard(1,'Rick Hamnett / Mark Hill','Paul Richardson / Steve Cornwell');mcard(2,'Chris Appleby / Mike Crabtree',"Mark Richardson / Frank O'Hara");let h2=state.h2,h3=state.h3;h2num.textContent=h2;h2par.textContent='Par '+D2[h2-1];h2si.textContent='SI '+SI2[h2-1];h3num.textContent=h3;h3par.textContent='Par '+D3[h3-1];h3si.textContent='SI '+SI3[h3-1];renderEntry(2);renderEntry(3)}
+window.GM={snapshot:()=>({state:{...state},players:P.map(p=>({d2:p.d2,d3:p.d3}))}),apply:data=>{Object.assign(state,data.state||{});(data.players||[]).forEach((x,i)=>Object.assign(P[i],x));render();}};
 render();
+</script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+const firebaseConfig={apiKey:"AIzaSyAEE7L8QHK31vuBHff5Bk1UNfA1lXh2F5k",authDomain:"the-gentlemans-majo.firebaseapp.com",projectId:"the-gentlemans-majo",storageBucket:"the-gentlemans-majo.firebasestorage.app",messagingSenderId:"790092826912",appId:"1:790092826912:web:d5cb463fefd9cafccd6f45"};
+const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app),scoreRef=doc(db,"tournaments","live");
+const editors=["R5cKXnhK3RYPvT5qlfkHgw3Bj0B3","jlSryVI0PTMAVd76pGoPNCXUVO92"];
+let canEdit=false;
+const box=document.createElement("div");
+box.className="card";box.id="scorerBox";
+box.innerHTML='<div class="goldbar">SCORER ACCESS</div><p class="muted" id="scorerStatus">Viewing live scores. Rick or Paul can sign in to update them.</p><div id="loginFields" class="grid2"><input id="scoreEmail" type="email" placeholder="Email"><input id="scorePassword" type="password" placeholder="Password"></div><button class="btn dark" id="scoreLogin" style="width:100%;margin-top:8px">Sign in to score</button><button class="btn light hidden" id="scoreLogout" style="width:100%;margin-top:8px">Sign out</button>';
+document.querySelector("#home .sub").after(box);
+const status=document.getElementById("scorerStatus"),login=document.getElementById("scoreLogin"),logout=document.getElementById("scoreLogout"),fields=document.getElementById("loginFields");
+function controls(){document.querySelectorAll("#match1 button,#match2 button,#d2entry input,#d3entry input").forEach(el=>el.disabled=!canEdit);}
+function authView(){status.textContent=canEdit?"Signed in as scorekeeper. Changes appear on every phone.":"Viewing live scores. Rick or Paul can sign in to update them.";login.classList.toggle("hidden",canEdit);logout.classList.toggle("hidden",!canEdit);fields.classList.toggle("hidden",canEdit);controls();}
+login.onclick=async()=>{try{await signInWithEmailAndPassword(auth,document.getElementById("scoreEmail").value,document.getElementById("scorePassword").value);}catch(e){status.textContent="Sign-in failed. Please check the email and password.";}};
+logout.onclick=()=>signOut(auth);
+function save(){if(canEdit) setDoc(scoreRef,window.GM.snapshot(),{merge:true});}
+["setMatch","setGross","prevHole","nextHole"].forEach(name=>{const original=window[name];window[name]=function(){if((name==="setMatch"||name==="setGross")&&!canEdit)return;const result=original.apply(this,arguments);save();return result;};});
+onAuthStateChanged(auth,user=>{canEdit=!!user&&editors.includes(user.uid);authView();});
+onSnapshot(scoreRef,snap=>{if(snap.exists())window.GM.apply(snap.data());});
 </script></body></html>
